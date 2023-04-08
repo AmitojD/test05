@@ -1,99 +1,136 @@
 const express = require('express');
-const exphbs = require('express-handlebars');
-const { Pool } = require('pg');
-const config = require('./config');
-
+const bodyParser = require('body-parser');
+const exphbs  = require('express-handlebars');
 const app = express();
-const pool = new Pool(config.database);
+const Handlebars = require('handlebars')
+const {allowInsecurePrototypeAccess} = require('@handlebars/allow-prototype-access')
+const insecureHandlebars = allowInsecurePrototypeAccess(Handlebars)
+var mongoose = require("mongoose");
+var Schema = mongoose.Schema;
 
-app.engine('.hbs', exphbs.engine({ extname: '.hbs'}));
-app.set('view engine', '.hbs');
+// connect to Your MongoDB Atlas Database
+mongoose.connect("mongodb+srv://amitojdhanjukaur:y75nywgyjPXluvRH@cluster0.hslvfwb.mongodb.net/?retryWrites=true&w=majority");// mongodb string
+const db = mongoose.connection;
+db.on('error', console.error.bind(console, 'connection error:'));
+db.once('open', function() {
+  console.log('Connected to MongoDB');
+});
+// define the company schema
+const TodoSchema = new Schema({
+  
+    "task": String,
+    "completed":Boolean
+    
+  
+  });
+  // register the Company model using the companySchema
+  // use the web322_users collection in the db to store documents
+  //var MyModel  = mongoose.model("web322_users", mySchema);
+  var ToDoList = mongoose.model("todo", TodoSchema);
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-
-
-app.use(express.static('public'));
 
 
 
-// Routes
-app.get('/', async (req, res) => {
-  const client = await pool.connect();
-  const result = await client.query('SELECT * FROM todos ORDER BY id');
-  const todos = result.rows;
-  client.release();
 
-  res.render('index', { todos, layout:false });
+
+
+app.use(express.static("./public/"));
+
+// Define a custom Handlebars helper function to format dates
+const hbs = exphbs.create({
+    helpers: {
+        formatDate: function (date) {
+            return date;
+        }
+    },
+    handlebars: allowInsecurePrototypeAccess(Handlebars),
+    defaultLayout: 'main',
+    extname:".hbs"
+});
+
+// Register handlebars as the rendering engine for views
+app.engine(".hbs", hbs.engine);
+app.set("view engine", ".hbs");
+
+
+// Use body-parser middleware to parse incoming form data
+app.use(bodyParser.urlencoded({ extended: false }));
+
+
+
+
+
+
+// Routes Main
+
+app.get('/', async (req, res) => {   
+    const data = await ToDoList.find();
+    res.render('index', { data , layout:false });
 });
 
 
+// add
 app.post('/add', async (req, res) => {
-  const task = req.body.task;
-
+  const { task } = req.body;
   if (task) {
-    const client = await pool.connect();
-    await client.query('INSERT INTO todos (task) VALUES ($1)', [task]);
-    client.release();
+  var NewUser = new ToDoList({
+      task: task
+     
+    });
+    await NewUser.save();
   }
-
   res.redirect('/');
 });
 
+// complete post
 app.post('/complete/:id', async (req, res) => {
   const id = req.params.id;
 
-  if (id) {
-    const client = await pool.connect();
-    await client.query('UPDATE todos SET completed = true WHERE id = $1', [id]);
-    client.release();
-  }
 
+    if (id) {
+    await ToDoList.findByIdAndUpdate(id, { completed : true});
+    }
+    
+    res.redirect('/');
+});
+
+
+
+
+// edit get
+app.get('/edit/:id', async (req, res) => {
+  const id = req.params.id;
+    //const id = req.query.id;
+    
+    const data = await ToDoList.find({"_id" : id} , "_id task");
+    res.render('edit', { data , layout:false });
+    
+});
+
+
+// Update Id
+app.post('/update/:id', async (req, res) => {
+  const id = req.params.id;
+  const task = req.body.task;
+  if (id && task) {
+  await ToDoList.findByIdAndUpdate(id, { task });
+  }
+  res.redirect('/');
+  
+});
+
+
+// Delete Id
+app.post('/delete/:id', async (req, res) => {
+  const id = req.params.id;
+  if (id) {
+  await ToDoList.findByIdAndDelete(id);
+  }
   res.redirect('/');
 });
 
 
-app.get('/edit/:id', async (req, res) => {
-    const id = req.params.id;
-  
-    if (id) {
-      const client = await pool.connect();
-      const result = await client.query('SELECT * FROM todos WHERE id = $1', [id]);
-      const todo = result.rows[0];
-      client.release();
-  
-      res.render('edit', { todo, layout:false });
-    } else {
-      res.redirect('/');
-    }
-  });
-  
-  app.post('/update/:id', async (req, res) => {
-    const id = req.params.id;
-    const task = req.body.task;
-  
-    if (id && task) {
-      const client = await pool.connect();
-      await client.query('UPDATE todos SET task = $1 WHERE id = $2', [task, id]);
-      client.release();
-    }
-  
-    res.redirect('/');
-  });
-
-  // Add this route after the existing routes
-app.post('/delete/:id', async (req, res) => {
-    const id = req.params.id;
-  
-    if (id) {
-      const client = await pool.connect();
-      await client.query('DELETE FROM todos WHERE id = $1', [id]);
-      client.release();
-    }
-  
-    res.redirect('/');
-  });
-
+// Start the server
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
