@@ -1,9 +1,9 @@
 module.exports = {
     database: {
-      user: 'krhypwqm',
-      host: 'suleiman.db.elephantsql.com',
-      database: 'krhypwqm',
-      password: '0s9wUh-JU1SkxoXswFTv_zGYlicaX2Pp',
+      user: 'gfqqipsk',
+      host: 'rosie.db.elephantsql.com',
+      database: 'gfqqipsk',
+      password: '18DUnif-QXsxj85yJsLcI0-nGVNY4lk9',
       port: 5432,
     },
   };
